@@ -83,7 +83,7 @@ export default {
 			return jsonResponse({ error: 'Not found' }, 404);
 		} catch (error: any) {
 			console.error('Request error:', error);
-			return jsonResponse({ error: 'Internal server error', message: error.message }, 500);
+			return jsonResponse({ error: 'Internal server error', message: error.message, stack: error.stack }, 500);
 		}
 	},
 } satisfies ExportedHandler<Env>;
