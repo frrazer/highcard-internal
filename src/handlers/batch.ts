@@ -1,8 +1,8 @@
 import { authenticateRequest } from '../utils/auth';
 import { jsonResponse } from '../utils/response';
-import { handleClaimPack, handleCreatePack, handlePackStatus } from './pack';
+import { handleClaimPack, handleRestockPack, handlePackStatus } from './pack';
 import { handleGetInventory, handleEditInventory } from './user';
-import type { BatchRequest, BatchResponse, BatchedRequest, BatchedResponse, CreatePackRequest, EditInventoryRequest } from '../types';
+import type { BatchRequest, BatchResponse, BatchedRequest, BatchedResponse, RestockPackRequest, EditInventoryRequest } from '../types';
 
 const usedNonces = new Map<string, number>();
 const NONCE_TTL = 300000;
@@ -77,10 +77,7 @@ async function routeRequest(req: BatchedRequest, env: Env): Promise<BatchedRespo
 	}
 
 	const token = authHeader.replace('Bearer ', '');
-	const auth = await authenticateRequest(
-		new Request('http://internal', { headers: { Authorization: `Bearer ${token}` } }),
-		env
-	);
+	const auth = await authenticateRequest(new Request('http://internal', { headers: { Authorization: `Bearer ${token}` } }), env);
 
 	if (!auth.valid) {
 		return {
@@ -99,11 +96,11 @@ async function routeRequest(req: BatchedRequest, env: Env): Promise<BatchedRespo
 				return { status: 400, body: { error: 'Missing packId' } };
 			}
 			response = await handleClaimPack(body, env, userId);
-		} else if (path === '/pack/create' && method === 'POST') {
+		} else if (path === '/pack/restock' && method === 'POST') {
 			if (!body || !body.packId || !body.stock) {
 				return { status: 400, body: { error: 'Invalid packId or stock' } };
 			}
-			response = await handleCreatePack(body, env, userId);
+			response = await handleRestockPack(body, env);
 		} else if (path === '/user/inventory' && method === 'GET') {
 			response = await handleGetInventory(env, userId);
 		} else if (path === '/user/inventory/edit' && method === 'POST') {

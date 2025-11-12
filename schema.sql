@@ -10,13 +10,8 @@ CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires_at ON auth_tokens(expires_at)
 
 CREATE TABLE IF NOT EXISTS packs (
     pack_id TEXT PRIMARY KEY,
-    total_stock INTEGER NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at INTEGER NOT NULL
+    total_stock INTEGER NOT NULL
 );
-
-CREATE INDEX IF NOT EXISTS idx_packs_created_by ON packs(created_by);
-CREATE INDEX IF NOT EXISTS idx_packs_created_at ON packs(created_at);
 
 CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

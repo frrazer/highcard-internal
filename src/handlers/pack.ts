@@ -1,7 +1,7 @@
 import { hashToShard, getShardId, distributeTokens, getNextShardIndex, MAX_SHARD_ATTEMPTS } from '../utils/sharding';
 import { logTransaction } from '../utils/logging';
 import { jsonResponse } from '../utils/response';
-import type { CreatePackRequest } from '../types';
+import type { RestockPackRequest } from '../types';
 
 export async function handleClaimPack(body: { packId: string }, env: Env, userId: string): Promise<Response> {
 	const { packId } = body;
@@ -58,12 +58,16 @@ export async function handleClaimPack(body: { packId: string }, env: Env, userId
 	});
 }
 
-export async function handleCreatePack(body: CreatePackRequest, env: Env, userId: string): Promise<Response> {
+export async function handleRestockPack(body: RestockPackRequest, env: Env): Promise<Response> {
 	const { packId, stock } = body;
 
 	if (!packId || stock < 1) {
 		return jsonResponse({ error: 'Invalid packId or stock' }, 400);
 	}
+
+	const existingPack = await env.DB.prepare('SELECT pack_id, total_stock FROM packs WHERE pack_id = ?').bind(packId).first();
+
+	const newTotalStock = existingPack ? (existingPack.total_stock as number) + stock : stock;
 
 	const distribution = distributeTokens(stock);
 
@@ -73,15 +77,27 @@ export async function handleCreatePack(body: CreatePackRequest, env: Env, userId
 			const shardId = getShardId(packId, shardIndex);
 			const shardStub = env.PACK_SHARD.idFromName(shardId);
 			const shardDO = env.PACK_SHARD.get(shardStub);
-			await shardDO.initialize(packId, shardIndex, tokens);
+
+			try {
+				const status = await shardDO.getStatus();
+				if (status.packId === packId) {
+					await shardDO.restock(tokens);
+				} else {
+					await shardDO.initialize(packId, shardIndex, tokens);
+				}
+			} catch {
+				await shardDO.initialize(packId, shardIndex, tokens);
+			}
 		}
 	}
 
-	await env.DB.prepare('INSERT INTO packs (pack_id, total_stock, created_by, created_at) VALUES (?, ?, ?, ?)')
-		.bind(packId, stock, userId, Date.now())
-		.run();
+	if (existingPack) {
+		await env.DB.prepare('UPDATE packs SET total_stock = ? WHERE pack_id = ?').bind(newTotalStock, packId).run();
+	} else {
+		await env.DB.prepare('INSERT INTO packs (pack_id, total_stock) VALUES (?, ?)').bind(packId, newTotalStock).run();
+	}
 
-	return jsonResponse({ success: true, packId, stock, shards: distribution.filter((t) => t > 0).length });
+	return jsonResponse({ success: true, packId, stock, totalStock: newTotalStock, shards: distribution.filter((t) => t > 0).length });
 }
 
 export async function handlePackStatus(packId: string, env: Env): Promise<Response> {

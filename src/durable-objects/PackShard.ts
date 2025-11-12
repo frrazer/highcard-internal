@@ -37,6 +37,12 @@ export class PackShard extends DurableObject<Env> {
 		await this.saveState();
 	}
 
+	async restock(tokens: number): Promise<void> {
+		this.tokensAvailable += tokens;
+		this.totalTokens += tokens;
+		await this.saveState();
+	}
+
 	async claim(userId: string, timestamp: number): Promise<{ success: boolean; reason?: string }> {
 		if (this.tokensAvailable <= 0) {
 			return { success: false, reason: 'shard_empty' };

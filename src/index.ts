@@ -3,11 +3,11 @@ import { User } from './durable-objects/User';
 import { authenticateRequest } from './utils/auth';
 import { RateLimiter } from './utils/ratelimit';
 import { jsonResponse } from './utils/response';
-import { handleClaimPack, handleCreatePack, handlePackStatus } from './handlers/pack';
+import { handleClaimPack, handleRestockPack, handlePackStatus } from './handlers/pack';
 import { handleGetInventory, handleEditInventory } from './handlers/user';
 import { handleBatch } from './handlers/batch';
 import { handleCreateToken } from './handlers/admin';
-import type { CreatePackRequest, EditInventoryRequest } from './types';
+import type { RestockPackRequest, EditInventoryRequest } from './types';
 
 export { PackShard, User };
 
@@ -57,9 +57,9 @@ export default {
 				return await handleClaimPack(body, env, userId);
 			}
 
-			if (path === '/pack/create' && request.method === 'POST') {
-				const body = await request.json<CreatePackRequest>();
-				return await handleCreatePack(body, env, userId);
+			if (path === '/pack/restock' && request.method === 'POST') {
+				const body = await request.json<RestockPackRequest>();
+				return await handleRestockPack(body, env);
 			}
 
 			if (path === '/user/inventory' && request.method === 'GET') {

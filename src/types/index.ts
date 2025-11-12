@@ -11,15 +11,16 @@ export interface BuyPackResponse {
 	reason?: string;
 }
 
-export interface CreatePackRequest {
+export interface RestockPackRequest {
 	packId: string;
 	stock: number;
 }
 
-export interface CreatePackResponse {
+export interface RestockPackResponse {
 	success: boolean;
 	packId: string;
 	stock: number;
+	totalStock: number;
 	shards: number;
 }
 
@@ -121,8 +122,6 @@ export interface Transaction {
 export interface Pack {
 	packId: string;
 	totalStock: number;
-	createdBy: string;
-	createdAt: number;
 }
 
 export interface AuthToken {
