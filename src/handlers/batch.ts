@@ -1,6 +1,6 @@
 import { authenticateRequest } from '../utils/auth';
 import { jsonResponse } from '../utils/response';
-import { handleClaimPack, handleRestockPack, handlePackStatus } from './pack';
+import { handleClaimPack, handleRestockPack, handlePackStatus, handlePackStatusFast, handleBulkPackStatus } from './pack';
 import { handleGetInventory, handleEditInventory } from './user';
 import type { BatchRequest, BatchResponse, BatchedRequest, BatchedResponse, RestockPackRequest, EditInventoryRequest } from '../types';
 
@@ -66,7 +66,10 @@ export async function handleBatch(request: Request, env: Env): Promise<Response>
 }
 
 async function routeRequest(req: BatchedRequest, env: Env): Promise<BatchedResponse> {
-	const { method, path, body, headers } = req;
+	const { method, body, headers } = req;
+	let { path } = req;
+
+	const pathWithoutQuery = path.split('?')[0];
 
 	const authHeader = headers?.['Authorization'] || headers?.['authorization'];
 	if (!authHeader) {
@@ -91,28 +94,40 @@ async function routeRequest(req: BatchedRequest, env: Env): Promise<BatchedRespo
 	try {
 		let response: Response;
 
-		if (path === '/pack/claim' && method === 'POST') {
+		if (pathWithoutQuery === '/pack/claim' && method === 'POST') {
 			if (!body || !body.packId) {
 				return { status: 400, body: { error: 'Missing packId' } };
 			}
 			response = await handleClaimPack(body, env, userId);
-		} else if (path === '/pack/restock' && method === 'POST') {
+		} else if (pathWithoutQuery === '/pack/restock' && method === 'POST') {
 			if (!body || !body.packId || !body.stock) {
 				return { status: 400, body: { error: 'Invalid packId or stock' } };
 			}
 			response = await handleRestockPack(body, env);
-		} else if (path === '/user/inventory' && method === 'GET') {
+		} else if (pathWithoutQuery === '/user/inventory' && method === 'GET') {
 			response = await handleGetInventory(env, userId);
-		} else if (path === '/user/inventory/edit' && method === 'POST') {
+		} else if (pathWithoutQuery === '/user/inventory/edit' && method === 'POST') {
 			if (!body || (!body.add && !body.remove)) {
 				return { status: 400, body: { error: 'Must provide either add or remove operations' } };
 			}
 			response = await handleEditInventory(body, env, userId);
-		} else if (path === '/pack/status' && method === 'GET') {
-			if (!body || !body.packId) {
+		} else if (pathWithoutQuery === '/pack/status' && method === 'GET') {
+			const queryString = path.split('?')[1];
+			const params = new URLSearchParams(queryString);
+			const packId = params.get('packId');
+			const fast = params.get('fast') !== 'false';
+
+			if (!packId) {
 				return { status: 400, body: { error: 'Missing packId' } };
 			}
-			response = await handlePackStatus(body.packId, env);
+
+			response = fast ? await handlePackStatusFast(packId, env) : await handlePackStatus(packId, env);
+		} else if (pathWithoutQuery === '/pack/status/bulk' && method === 'POST') {
+			if (!body || !body.packIds || !Array.isArray(body.packIds)) {
+				return { status: 400, body: { error: 'Missing or invalid packIds array' } };
+			}
+			const fast = body.fast !== false;
+			response = await handleBulkPackStatus(body.packIds, env, fast);
 		} else {
 			return {
 				status: 404,
@@ -126,9 +141,10 @@ async function routeRequest(req: BatchedRequest, env: Env): Promise<BatchedRespo
 			body: responseBody,
 		};
 	} catch (error: any) {
+		console.error('Batch route error:', error);
 		return {
 			status: 500,
-			body: { error: 'Request processing failed', message: error.message },
+			body: { error: 'Request processing failed', message: error.message, stack: error.stack },
 		};
 	}
 }
